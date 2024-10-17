@@ -1,0 +1,11 @@
+name: NSD_video_cropping
+channels:
+  - conda-forge
+  - menpo
+dependencies:
+  - python>=3.11
+  - numpy<2
+  - scipy
+  - scikit-learn
+  - opencv
+  - matplotlib

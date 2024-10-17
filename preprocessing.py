@@ -9,6 +9,9 @@ from sklearn.mixture import GaussianMixture
 import matplotlib.pyplot as plt
 from pathlib import Path
 
+import warnings
+warnings.filterwarnings('ignore')
+
 # TODO Let user define the variables in this function
 def get_lines(image: ndarray) -> ndarray:
     """Find lines in the given image
