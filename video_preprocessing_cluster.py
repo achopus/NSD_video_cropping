@@ -80,6 +80,7 @@ def warp_video(video_index: int, path: str, matrix: str, lengths_array, progress
     # Main video transform loop
     with lock:
         progress_array[video_index] = 0
+        lengths_array[video_index] = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     
     t0 = time.time()
     while cap.isOpened():
