@@ -80,7 +80,6 @@ def warp_video(video_index: int, path: str, matrix: str, lengths_array, progress
     # Main video transform loop
     with lock:
         progress_array[video_index] = 0
-        lengths_array[video_index] = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     
     t0 = time.time()
     while cap.isOpened():
@@ -165,7 +164,8 @@ def writer(lengths_array, progress_array, runtime_array, source_files, lock):
 
         # Final message
         if N_remaining == 0:
-            print("\033[92mAll done\033[0m\n")
+            for _ in range(n_lines_in_message - 3): del_line()
+            print(f"{color.BOLD}{color.GREEN}All done{color.END}\n")
             break
         
         # Reduce the call frequency of the writting thread
@@ -187,6 +187,7 @@ def main(parser: ArgumentParser) -> None:
 
     source_files = os.listdir(folder_in)
     N = len(source_files)
+    max_running_processes = min(N, max_running_processes)
         
     lengths = Array('i', [0] * N)
     progress = Array('i', [0] * N)
@@ -214,21 +215,25 @@ def main(parser: ArgumentParser) -> None:
         
 
     # Dynamically add new processes as old ones finish
-    while process_queue:
+    
+    while True:
         # Check for any completed processes
         for process in process_queue:
             if not process.is_alive():
                 process_queue.remove(process)  # Remove completed process
                 # Start a new process to replace the completed one
+                if file_id == N: break
                 process = Process(target=pipeline_wrapper, args=(file_id, lengths, progress, runtime, folder_in, folder_out, source_files, lock))
                 process.start()
                 process_queue.append(process)
                 current_process += 1
                 file_id += 1
+                
                 break  # Avoid modifying process_queue while iterating
 
         # Avoid busy-waiting by adding a short sleep
-        time.sleep(0.1)
+        if file_id == N: break
+        time.sleep(0.5)
 
     # Wait for all remaining processes to complete
     for process in process_queue:
@@ -241,5 +246,5 @@ if __name__ == "__main__":
                             description="Loads and transforms all the videos in the given folder to have a square arena, with normalized size.")
     parser.add_argument("--folder_in", type=str, default="data")
     parser.add_argument("--folder_out", type=str, default="data_out")
-    parser.add_argument("--num_workers", type=int, default=5)
+    parser.add_argument("--num_workers", type=int, default=1)
     main(parser)
