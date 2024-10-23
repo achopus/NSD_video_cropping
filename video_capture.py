@@ -196,6 +196,7 @@ if __name__ == "__main__":
     folder_in = args.folder_in
     folder_out = args.folder_out
     files = os.listdir(folder_in)
+    files = [file for file in files if (not os.path.isdir(file) and '.mp4' in file)]
     for i, file in enumerate(files):
         path = os.path.join(folder_in, file)
         print(f"\r{100 * (i + 1) / len(files):.2f}% - {file}", end="")
