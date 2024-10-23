@@ -83,7 +83,7 @@ def fit_arena(arena, n_iters = 10):
     arena_TR = arena[np.logical_and(arena[:, 0] > 750, arena[:, 1] < 600), :]
     arena_BL = arena[np.logical_and(arena[:, 0] < 750, arena[:, 1] > 600), :]
     arena_BR = arena[np.logical_and(arena[:, 0] > 750, arena[:, 1] > 600), :]
-    arenas = [arena_TL, arena_TR, arena_BL, arena_BR]
+    arenas = [arena_TL, arena_TR, arena_BR, arena_BL]
     
     mm_sorted = np.zeros((4, 2))    
     for i, a in enumerate(arenas):
