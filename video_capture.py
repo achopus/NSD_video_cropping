@@ -8,6 +8,11 @@ from sklearn.mixture import GaussianMixture
 from pathlib import Path
 import matplotlib.pyplot as plt
 import warnings
+
+import time
+from multiprocessing import Process
+
+
 warnings.filterwarnings("ignore")
 
 def get_lines(image):
@@ -19,7 +24,7 @@ def get_lines(image):
     theta = np.pi / 720  # angular resolution in radians of the Hough grid
     threshold = 30  # minimum number of votes (intersections in Hough grid cell)
     min_line_length = 500  # minimum number of pixels making up a line
-    max_line_gap = 150  # maximum gap in pixels between connectable line segments
+    max_line_gap = 200  # maximum gap in pixels between connectable line segments
 
     low_threshold = 200
     high_threshold = 255
@@ -44,6 +49,8 @@ def filter_lines(lines):
 def extract_arena(path, min_points=500):
     L = []
     cap = cv2.VideoCapture(path)
+    W  = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))   # float `width`
+    H = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))  # float `height`
     if not cap.isOpened(): raise RuntimeError
     frame_number = 15 * 60
     cap.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
@@ -54,9 +61,13 @@ def extract_arena(path, min_points=500):
     brighteness_limit = 0.25
     bl_adjusted =  brighteness_limit
     
+    frames_used = 0
+    frames_needed = 45
+    average_frame = np.zeros((frames_needed, H, W))
     while cap.isOpened():
         ret, img = cap.read()
         frame_number += 15
+        #print(f"\r{frame_number} - {len(L)}", end="          ")
         cap.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
         if not ret: break
         gray = np.array(cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)) / 255
@@ -71,9 +82,23 @@ def extract_arena(path, min_points=500):
         else:
             n_jumps = 0
 
-        lines = get_lines(gray)
-        lines = filter_lines(lines)
-        L.extend(lines)
+        average_frame[frames_used, ...] = gray
+        frames_used += 1
+        if frames_used >= frames_needed:
+            frames_used = 0
+            average_frame = average_frame.mean(0)
+            lines = get_lines(average_frame)
+            lines = filter_lines(lines)
+            """
+            average_frame = np.repeat((255 * average_frame[:, :, None]).astype(np.uint8), 3, 2)
+            for x0, y0, x1, y1 in lines: cv2.line(average_frame, (x0, y0), (x1, y1), color=(0, 0, 255))
+            cv2.imshow("Frame", average_frame)
+            if cv2.waitKey(25) & 0xFF == ord('q'):
+                break
+            """
+            average_frame = np.zeros((frames_needed, H, W)) 
+            L.extend(lines)
+        
         if len(L) >= min_points: break
     cap.release()
     return np.array(L), gray
@@ -168,6 +193,12 @@ def get_perspective_transform(folder_in: str, file: str, folder_out: str, min_po
     path = os.path.join(folder_in, file)
     lines, frame = extract_arena(path, min_points)
     points = extract_points(lines)
+    """
+    plt.figure()
+    plt.imshow(frame, cmap='gray')
+    plt.scatter(points[:, 0], points[:, 1])
+    plt.show()
+    """
     corners = fit_arena(points, n_outlier_iters)
     DEFINED_CORNERS = np.array([[ 400,   50],
                                 [1350,   50],
@@ -184,7 +215,7 @@ def get_perspective_transform(folder_in: str, file: str, folder_out: str, min_po
     plt.yticks([])
     plt.savefig(os.path.join(folder_out, f"{folder_in}_{Path(file).stem}.png"), dpi=300, bbox_inches='tight')
     np.save(os.path.join(folder_out, f"{folder_in}_{Path(file).stem}.npy"), M)
-    
+    print(f"Done: {file}")
     return M, frame
 
 
@@ -197,8 +228,46 @@ if __name__ == "__main__":
     folder_out = args.folder_out
     files = os.listdir(folder_in)
     files = [file for file in files if (not os.path.isdir(file) and '.mp4' in file)]
-    for i, file in enumerate(files):
-        path = os.path.join(folder_in, file)
-        print(f"\r{100 * (i + 1) / len(files):.2f}% - {file}", end="")
-        M, frame = get_perspective_transform(folder_in, file, folder_out, min_points=1000, n_outlier_iters=10)
-    print()
+    N = len(files)
+    
+    process_queue: list[Process] = []  # Queue to hold running processes
+    current_process = 0  # Keep track of the current process number
+    max_running_processes = min(N, 8)
+
+    file_id = 0
+    # Initialize first batch of processes
+    while current_process < max_running_processes:
+        process = Process(target=get_perspective_transform, args=(folder_in, files[file_id], folder_out, 1000, 5))
+        process.start()
+        process_queue.append(process)
+        current_process += 1
+        file_id += 1
+        
+
+    # Dynamically add new processes as old ones finish
+    
+    while True:
+        # Check for any completed processes
+        for process in process_queue:
+            if not process.is_alive():
+                process_queue.remove(process)  # Remove completed process
+                # Start a new process to replace the completed one
+                if file_id == N: break
+                process = Process(target=get_perspective_transform, args=(folder_in, files[file_id], folder_out, 1000, 5))
+                process.start()
+                process_queue.append(process)
+                current_process += 1
+                file_id += 1
+                
+                break  # Avoid modifying process_queue while iterating
+
+        # Avoid busy-waiting by adding a short sleep
+        if file_id == N: break
+        time.sleep(0.5)
+
+    # Wait for all remaining processes to complete
+    for process in process_queue:
+        process.join()
+    
+    cv2.destroyAllWindows()
+        
