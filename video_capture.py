@@ -86,7 +86,7 @@ def fit_arena(arena, n_iters = 10):
     arenas = [arena_TL, arena_TR, arena_BL, arena_BR]
     
     mm_sorted = np.zeros((4, 2))    
-    for a in arenas:
+    for i, a in enumerate(arenas):
         for _ in range(n_iters):
             mixture = GaussianMixture(n_components=1, max_iter=1000, tol=1e-5, covariance_type='spherical').fit(a)
             density = mixture.score_samples(a)
