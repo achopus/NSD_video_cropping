@@ -1,11 +1,14 @@
 import os
 import cv2
 import numpy as np
+import argparse
 
 from scipy.ndimage import sobel
 from sklearn.mixture import GaussianMixture
 from pathlib import Path
 import matplotlib.pyplot as plt
+import warnings
+warnings.filterwarnings("ignore")
 
 def get_lines(image):
     edges = np.sqrt(sobel(image, 0)**2 + sobel(image, 1)**2)
@@ -187,8 +190,15 @@ def get_perspective_transform(folder_in: str, file: str, folder_out: str, min_po
 
 
 if __name__ == "__main__":
-    folder_in = "videos"
-    file = "ID11_FCBD_week6_baseline_ar1.mp4"
-    folder_out = "out"
-    path = os.path.join(folder_in, file)
-    M, frame = get_perspective_transform(folder_in, file, folder_out, min_points=1000, n_outlier_iters=10)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--folder_in", default="data", type=str)
+    parser.add_argument("--folder_out", default="data_out", type=str)
+    args = parser.parse_args()
+    folder_in = args.folder_in
+    folder_out = args.folder_out
+    files = os.listdir(folder_in)
+    for i, file in enumerate(files):
+        path = os.path.join(folder_in, file)
+        print(f"\r{100 * (i + 1) / len(files):.2f}% - {file}", end="")
+        M, frame = get_perspective_transform(folder_in, file, folder_out, min_points=1000, n_outlier_iters=10)
+    print()
