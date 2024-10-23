@@ -79,22 +79,21 @@ def extract_arena(path, min_points=500):
     return np.array(L), gray
 
 def fit_arena(arena, n_iters = 10):
-    for _ in range(n_iters):
-        mixture = GaussianMixture(n_components=4, max_iter=1000, tol=1e-5, covariance_type='spherical').fit(arena)
-        density = mixture.score_samples(arena)
-        density_threshold = np.percentile(density, 4)
-        arena = arena[density > density_threshold, :]
-    mm = mixture.means_
-    mm_sorted = np.zeros((4, 2))    
-    TL = np.where(np.logical_and(mm[:, 0] < 800, mm[:, 1] < 600))[0][0]
-    TR = np.where(np.logical_and(mm[:, 0] > 800, mm[:, 1] < 600))[0][0]
-    BL = np.where(np.logical_and(mm[:, 0] < 800, mm[:, 1] > 600))[0][0]
-    BR = np.where(np.logical_and(mm[:, 0] > 800, mm[:, 1] > 600))[0][0]
-    mm_sorted[0, :] = mm[TL, :]
-    mm_sorted[1, :] = mm[TR, :]
-    mm_sorted[2, :] = mm[BR, :]
-    mm_sorted[3, :] = mm[BL, :]
+    arena_TL = arena[np.logical_and(arena[:, 0] < 750, arena[:, 1] < 600), :]
+    arena_TR = arena[np.logical_and(arena[:, 0] > 750, arena[:, 1] < 600), :]
+    arena_BL = arena[np.logical_and(arena[:, 0] < 750, arena[:, 1] > 600), :]
+    arena_BR = arena[np.logical_and(arena[:, 0] > 750, arena[:, 1] > 600), :]
+    arenas = [arena_TL, arena_TR, arena_BL, arena_BR]
     
+    mm_sorted = np.zeros((4, 2))    
+    for a in arenas:
+        for _ in range(n_iters):
+            mixture = GaussianMixture(n_components=1, max_iter=1000, tol=1e-5, covariance_type='spherical').fit(a)
+            density = mixture.score_samples(a)
+            density_threshold = np.percentile(density, 4)
+            a = a[density > density_threshold, :]
+        mm = mixture.means_
+        mm_sorted[i, :] = mm    
     return mm_sorted
 
 def visualize_result(gray, arena, mm_sorted):
