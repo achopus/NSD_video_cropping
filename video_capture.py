@@ -62,12 +62,12 @@ def extract_arena(path, min_points=500):
     bl_adjusted =  brighteness_limit
     
     frames_used = 0
-    frames_needed = 45
+    frames_needed = 15
     average_frame = np.zeros((frames_needed, H, W))
     while cap.isOpened():
         ret, img = cap.read()
         frame_number += 15
-        #print(f"\r{frame_number} - {len(L)}", end="          ")
+        print(f"\r{path} - {frame_number} - {len(L)}", end="")
         cap.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
         if not ret: break
         gray = np.array(cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)) / 255
@@ -221,53 +221,16 @@ def get_perspective_transform(folder_in: str, file: str, folder_out: str, min_po
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--folder_in", default="data", type=str)
-    parser.add_argument("--folder_out", default="data_out", type=str)
+    parser.add_argument("--folder_in", default="videos", type=str)
+    parser.add_argument("--folder_out", default="out", type=str)
     args = parser.parse_args()
     folder_in = args.folder_in
     folder_out = args.folder_out
+    n_lines = 500
+    n_outlier_iters = 5
     files = os.listdir(folder_in)
     files = [file for file in files if (not os.path.isdir(file) and '.mp4' in file)]
     N = len(files)
     
-    process_queue: list[Process] = []  # Queue to hold running processes
-    current_process = 0  # Keep track of the current process number
-    max_running_processes = min(N, 8)
-
-    file_id = 0
-    # Initialize first batch of processes
-    while current_process < max_running_processes:
-        process = Process(target=get_perspective_transform, args=(folder_in, files[file_id], folder_out, 1000, 5))
-        process.start()
-        process_queue.append(process)
-        current_process += 1
-        file_id += 1
-        
-
-    # Dynamically add new processes as old ones finish
-    
-    while True:
-        # Check for any completed processes
-        for process in process_queue:
-            if not process.is_alive():
-                process_queue.remove(process)  # Remove completed process
-                # Start a new process to replace the completed one
-                if file_id == N: break
-                process = Process(target=get_perspective_transform, args=(folder_in, files[file_id], folder_out, 1000, 5))
-                process.start()
-                process_queue.append(process)
-                current_process += 1
-                file_id += 1
-                
-                break  # Avoid modifying process_queue while iterating
-
-        # Avoid busy-waiting by adding a short sleep
-        if file_id == N: break
-        time.sleep(0.5)
-
-    # Wait for all remaining processes to complete
-    for process in process_queue:
-        process.join()
-    
-    cv2.destroyAllWindows()
-        
+    for file in files:
+        get_perspective_transform(folder_in, file, folder_out, n_lines, n_outlier_iters)
